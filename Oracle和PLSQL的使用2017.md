@@ -34,7 +34,8 @@ select * from DBA_sys_privs ;   授予用户帐户的系统权限
 
 --查看用户对应的表空间，
 [oracle@db ~]$ rman target  /
-RMAN> report  schema ;  .
+RMAN> report  schema ;  
+[oracle@db ~]$ sqlplus / as sysdba
 select tablespace_name,file_id,file_name from dba_data_files order by 1,2;
 select tablespace_name,file_id,bytes/1024/1024,file_name from dba_data_files order by file_id;
 select username,default_tablespace from dba_users ;
@@ -286,7 +287,6 @@ sqlplus / as sysdba
 select * from dba_directories;
 create directory dpdata as '/data/dpdata';
 grant read,write on directory dpdata to trade05;
-
 ```
 
 测试成功脚本：
@@ -791,6 +791,7 @@ Oracle Database 11g Enterprise Edition Release 11.2.0.1.0 - 64bit Production
 With the Partitioning, OLAP, Data Mining and Real Application Testing options
 SQL> drop user trade11 cascade ;
 User dropped.
+
 SQL> DROP TABLESPACE trade11 INCLUDING CONTENTS AND DATAFILES;
 Tablespace dropped.
 SQL> DROP TABLESPACE trade11_temp INCLUDING CONTENTS AND DATAFILES;
@@ -1123,7 +1124,7 @@ ITPUB论坛 | chinaunix博客 | chinaunix论坛
 北京皓辰网域网络信息技术有限公司. 版权所有
 ```
 
-### 4. 正常关闭
+### 4. 正常终止expdp/impdp进程运行
 
 
 
@@ -1170,11 +1171,29 @@ STOP_JOB顺序关闭执行的作业并退出客户机。
 STOP_JOB=IMMEDIATE 将立即关闭
 ```
 
-### 5. 实盘导入导出实战
+### 5. 实战：实盘导入导出
 
 导出：
 
 8G的导出时间经测大概需要1分钟左右，
+
+前提：
+
+```shell
+[trade@rdata02 ~]$ su - root
+Password: 
+[root@rdata02 ~]# su - oracle
+[oracle@rdata02 ~]$ sqlplus / as sysdba
+mkdir -p /data/
+
+sqlplus / as sysdba
+select * from dba_directories;
+create directory dpdata as '/data/dpdata';
+grant read,write on directory dpdata to trade;
+
+```
+
+
 
 ```shell
 
@@ -1192,28 +1211,67 @@ expdp $user/$passwd schemas=$user directory=$dir dumpfile=${user}_$date\.dmp
 
 导入：
 
-scp /data/dpdata/trade_2017-06-13.dmp root@172.20.30.10:/home/oracle/dpdata/
-passwd: HT@2017
+scp的时间大概需要15分钟，
+
+[oracle@rdata02 dpdata]$ scp /data/dpdata/trade_2017-06-13.dmp root@172.20.30.10:/home/oracle/dpdata/
+
+密码：HT@2017
 
 这里采用手动导入，因为发现+DATA/orcl/datafile/trade_temp.dbf 在共享存储上面，+在脚本执行有问题，
 
-DUMPFILE=trade_2017-06-13.dmp  要改成实际的文件，
-
-scp的时间大概需要15分钟，
+DUMPFILE=trade_2017-06-13.dmp  要改成实际的文件名称，
 
 8G导入时间经实际测试需要37分钟(约40分钟)，
 
+[root@rac01 dpdata]# chown oracle.oinstall  trade_2017-06-16.dmp
+
+[root@rac01 dpdata]# su - oracle
+
+
+
 ```shell
-CREATE TEMPORARY TABLESPACE trade_temp TEMPFILE '+DATA/orcl/datafile/trade_temp.dbf' SIZE 10G AUTOEXTEND ON NEXT 500M MAXSIZE unlimited EXTENT MANAGEMENT LOCAL
+[oracle@rac01 ~]$ sqlplus / as sysdba
+drop user trade cascade ;
+DROP TABLESPACE trade INCLUDING CONTENTS AND DATAFILES;
+DROP TABLESPACE trade_temp INCLUDING CONTENTS AND DATAFILES;
+
+CREATE TEMPORARY TABLESPACE trade_temp TEMPFILE '+DATA/orcl/datafile/trade_temp.dbf' SIZE 10G AUTOEXTEND ON NEXT 500M MAXSIZE unlimited EXTENT MANAGEMENT LOCAL;
 
 CREATE TABLESPACE  trade LOGGING  DATAFILE   '+DATA/orcl/datafile/trade.dbf' SIZE 2G autoextend on next 500M maxsize unlimited extent management local segment space management auto;
 
 CREATE USER trade IDENTIFIED BY HTCH2014htch DEFAULT TABLESPACE trade  TEMPORARY TABLESPACE trade_temp;
 
-grant connect,resource,dba to trade;
-grant read,write on directory dpdata to trade;
+select * from dba_directories;
+create directory dpdata as '/home/oracle/dmp';
+grant read,write on directory dmp to trade;
+grant connect,resource,dba to trade01;
+exit;
 
-impdp trade/HTCH2014htch@orcl DIRECTORY=DPDATA DUMPFILE=trade_2017-06-13.dmp remap_schema=trade:trade remap_tablespace=users:trade TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
+！！！注意注意注意！！！！如下要退出SQL，！！！要在Linux命令行执行！！！
+impdp trade/HTCH2014htch@orcl DIRECTORY=DMP DUMPFILE=trade20170617.dmp remap_schema=trade:trade remap_tablespace=users:trade TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
+```
+
+#### 5.1 导入报错
+
+把rac2 节点停止，或者把rac2上面要有相同的DUMPFILE目录和要导入的文件 如上面的/home/oracle/dpdata/及trade20170616.dmp，
+
+```shell
+Data Mining and Real Application Testing options
+ORA-39002: invalid operation
+ORA-39070: Unable to open the log file.
+ORA-29283: invalid file operation
+ORA-06512: at "SYS.UTL_FILE", line 536
+ORA-29283: invalid file operation
+
+[oracle@rac02 dump]$ mkdir -p /home/oracle/dmp
+
+[oracle@rac01 ~]$ scp /home/oracle/dmp/trade20170616.dmp root@172.20.30.11:/home/oracle/dmp
+[root@rac02 dmp]# pwd
+/home/oracle/dmp
+[root@rac02 dmp]# chown oracle.oinstall trade20170616.dmp
+[root@rac02 dmp]# su - oracle
+[oracle@rac02 ~]$ ll /home/oracle/dmp/
+
 ```
 
 
