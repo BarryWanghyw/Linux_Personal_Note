@@ -1,0 +1,47 @@
+select sum(f_prev_balance),sum(f_amount_in),sum(f_amount_out),su
+m(f_close_pl),sum(f_reckon_pl),sum(f_pl_sum),sum(f_charge),sum(f
+_deferred),sum(f_used_margin),sum(f_freeze_margin),sum(f_freeze_
+charge),sum(f_balance) from  V_ORG_TCUSTOMER_FUND_DETAIL   WHERE
+ f_super_org_id=:1  AND f_trade_date >= :2  AND f_trade_date <= 
+:3 
+
+
+SELECT COUNT(*) FROM v_org_customer  WHERE f_super_org_id=:1 
+
+
+
+select sum(f_prev_balance),sum(f_amount_in),sum(f_amount_out),su
+m(f_close_pl),sum(f_reckon_pl),sum(f_pl_sum),sum(f_charge),sum(f
+_deferred),sum(f_used_margin),sum(f_freeze_margin),sum(f_freeze_
+charge),sum(f_balance) from  V_ORG_TCUSTOMER_FUND_DETAIL   WHERE
+ f_super_org_id IN (14004) AND f_trade_date >= :1  AND f_trade_d
+ate <= :2 
+
+
+
+SELECT COUNT(*) FROM v_org_dealer_datail  WHERE f_super_org_id=:
+1  AND f_org_cate_id=:2 
+
+
+
+select sum(f_prev_balance),sum(f_amount_in),sum(f_amount_out),su
+m(f_close_pl),sum(f_reckon_pl),sum(f_pl_sum),sum(f_charge),sum(f
+_deferred),sum(f_used_margin),sum(f_freeze_margin),sum(f_freeze_
+charge),sum(f_balance) from  V_ORG_TCUSTOMER_FUND_DETAIL   WHERE
+ f_super_org_id IN (7942, 7945, 7996, 7998, 7999, 8000, 8002, 80
+03, 8004, 8005, 8001, 8219, 9714, 9418, 7854) AND f_trade_date >
+= :1  AND f_trade_date <= :2 
+
+
+
+SELECT COUNT(*) FROM V_ORG_TCUSTOMER_FUND_DETAIL  WHERE f_super_
+org_id=:1  AND f_trade_date >= :2  AND f_trade_date <= :3 
+
+
+select sum(f_prev_balance),sum(f_amount_in),sum(f_amount_out),su
+m(f_close_pl),sum(f_reckon_pl),sum(f_pl_sum),sum(f_charge),sum(f
+_deferred),sum(f_used_margin),sum(f_freeze_margin),sum(f_freeze_
+charge),sum(f_balance) from  V_ORG_TCUSTOMER_FUND_DETAIL   WHERE
+ f_super_org_id IN (11025) AND f_trade_date >= :1  AND f_trade_d
+ate <= :2 
+

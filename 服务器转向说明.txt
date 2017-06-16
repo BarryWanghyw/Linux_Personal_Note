@@ -1,0 +1,21 @@
+服务器转向更新说明：
+
+新版kaihu:
+规则：
+http://mgr.huatongsilver.com/kaihu => http://mgr.huatongsilver.com/accountweb
+产生结果：
+手机端开户
+http://mgr.huatongsilver.com/kaihu/mobile/dist/account_open.html => http://mgr.huatongsilver.com/accountweb/mobile/dist/account_open.html
+手机端签约
+http://mgr.huatongsilver.com/kaihu/mobile/dist/sign.html => http://mgr.huatongsilver.com/accountweb/mobile/dist/sign.html
+
+Orgaccountweb:
+规则：
+http://mgr.huatongsilver.com/orgaccountweb => http://mgr.huatongsilver.com/accountweb/org
+产生结果：
+机构开户链接 
+http://mgr.huatongsilver.com/orgaccountweb/web/ht/index.html => http://mgr.huatongsilver.com/accountweb/org/ht/index.html
+机构手机端公司介绍
+http://mgr.huatongsilver.com/orgaccountweb/web/mob/about/about.html => http://mgr.huatongsilver.com/accountweb/org/mob/about/about.html
+机构手机端开户签约
+http://mgr.huatongsilver.com/orgaccountweb/web/mob/about/about.html => http://mgr.huatongsilver.com/accountweb/web/mob/reg.html

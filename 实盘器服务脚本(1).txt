@@ -1,0 +1,83 @@
+rweb01
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+1 00 * * * cat /dev/null > /usr/local/nginx/logs/access.log
+#* * * * * /root/speedtest-cli --server=5083 >> /root/speed.txt
+trade
+00 05 * * * find /data/trade/www/tomcat7_trade/logs/ -mtime +10 | xargs rm -rf
+00 05 * * * find /data/trade/www/tomcat7_mgr/logs/ -mtime +10 | xargs rm -rf
+00 05 * * * find /data/trade/www/tomcat7_hq/logs/ -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log.zip" -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log" -mtime +10 | xargs rm -rf
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_trade/logs/catalina.out
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_mgr/logs/catalina.out
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_hq/logs/catalina.out
+rweb02
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+1 00 * * * cat /dev/null > /usr/local/nginx/logs/access.log
+trade
+00 05 * * * find /data/trade/www/tomcat7_trade/logs/ -mtime +10 | xargs rm -rf
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_trade/logs/catalina.out
+00 05 * * * find /data/trade/www/tomcat7_accountweb/logs/ -mtime +10 | xargs rm -rf
+rweb03
+root
+01 00 * * * cat /dev/null > /usr/local/nginx/logs/access.log
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+trade
+00 05 * * * find /data/trade/www/tomcat7_trade/logs/ -mtime +10 | xargs rm -rf
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_trade/logs/catalina.out
+rweb04
+root
+01 00 * * * cat /dev/null > /usr/local/nginx/logs/access.log
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+trade
+00 05 * * * find /data/trade/www/tomcat7_trade/logs/ -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log.zip" -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log" -mtime +10 | xargs rm -rf
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_trade/logs/catalina.out
+01 00 * * * cat /dev/null > /data/trade/www/tomcat7_hq/logs/catalina.out
+00 05 * * * find /data/trade/www/tomcat7_hq/logs/ -mtime +10 | xargs rm -rf
+rtrade01
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+trade
+05 05 * * * find /data/trade/app/ -name "*.log.zip" -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log" -mtime +10 | xargs rm -rf
+rtrade02
+root*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+trade
+05 05 * * * find /data/trade/app/ -name "*.log.zip" -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log" -mtime +10 | xargs rm -rf
+rdata01
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+55 15 * * 1-5 /usr/local/monitor.sh &
+24 17 * * 1-5 /usr/local/monitor.sh &
+oracle
+00 17 * * 1-5 /data/oracle_backup/oracle_backup.sh&
+
+rdata02
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+oracle
+30 17 * * 1-5 /data/oracle_backup/oracle_backup.sh&
+0 3 * * 2-6 /data/oracle_backup/oracle_backup.sh&
+
+
+bank1
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+trade
+05 05 * * * find /data/trade/app/ -name *.log -mtime +60 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name *.log.zip -mtime +60 | xargs rm -rf
+00 05 * * * find /data/trade/www/tomcat7_trade/logs/ -mtime +60 | xargs rm -rf
+00 05 * * * find /data/trade/www/tomcat7_mgr/logs/ -mtime +60 | xargs rm -rf
+00 05 * * * find /data/trade/www/tomcat7_bank/logs/ -mtime +60 | xargs rm -rf
+bank2
+root
+*/10 * * * * /usr/sbin/ntpdate time.nist.gov > /dev/null 2>&1
+trade
+05 05 * * * find /data/trade/app/ -name "*.log.zip" -mtime +10 | xargs rm -rf
+05 05 * * * find /data/trade/app/ -name "*.log" -mtime +10 | xargs rm -rf
+
