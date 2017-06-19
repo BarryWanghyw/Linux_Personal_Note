@@ -1173,6 +1173,8 @@ STOP_JOB=IMMEDIATE 将立即关闭
 
 ### 5. 实战：实盘导入导出
 
+#### 5.1 expdp导出和impdp导入
+
 导出：
 
 8G的导出时间经测大概需要1分钟左右，
@@ -1190,7 +1192,6 @@ sqlplus / as sysdba
 select * from dba_directories;
 create directory dpdata as '/data/dpdata';
 grant read,write on directory dpdata to trade;
-
 ```
 
 
@@ -1251,7 +1252,86 @@ exit;
 impdp trade/HTCH2014htch@orcl DIRECTORY=DMP DUMPFILE=trade20170617.dmp remap_schema=trade:trade remap_tablespace=users:trade TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
 ```
 
-#### 5.1 导入报错
+#### 5.2 exp导出
+
+```shell
+[oracle@rdata02 oracle_backup]$ cat oracle_backup.sh 
+#!/bin/bash
+
+#set environment variable
+
+source /home/oracle/.bash_profile 
+
+BACKUP_DIR=/data/oracle_backup/backups
+
+cd $BACKUP_DIR 
+
+day=`/bin/date +%F-%H`
+
+/data/oracle/product/11.2.0/db_1/bin/exp trade/HTCH2014htch@orcl file=${BACKUP_DIR}/backup_full_real_$day.dmp log=${BACKUP_DIR}/backup_full_real_$day.log > /dev/null
+
+/bin/gzip ${BACKUP_DIR}/backup_full_real_$day.dmp 
+
+/bin/find $BACKUP_DIR -mtime +10 -delete
+
+```
+
+
+
+```shell
+[oracle@rdata02 oracle_backup]$ cat /home/oracle/.bash_profile
+# .bash_profile
+
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+	. ~/.bashrc
+fi
+
+# User specific environment and startup programs
+
+PATH=$PATH:$HOME/bin
+
+export PATH
+export ORACLE_BASE=/data/oracle
+export ORACLE_SID=orcl
+export ORACLE_HOME=$ORACLE_BASE/product/11.2.0/db_1
+export ORALCE_OWNER=oracle
+export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib:$GGS_HOME
+export PATH=$PATH:$ORACLE_HOME/bin:$HOME/bin
+export NLS_LANG=AMERICAN_AMERICA.AL32UTF8
+export NLS_DATE_FORMAT=yyyy-mm-dd-hh24:mi:ss
+```
+
+
+
+```shell
+[oracle@rdata02 oracle_backup]$ cat scp_oracle.sh 
+#!/bin/bash
+Local_Dir='/data/oracle_backup/backups/'
+Ip='192.168.35.165'
+PassWord='HTCH2014htch'
+Des_Dir='/data/oracle_backup/backups/'
+List=$(find $Local_Dir -cmin -60)
+for i in $List
+do
+#echo $i
+    if [ -f $i ]
+      then
+        expect << EOF    #利用expect命令，捕捉Password关键字，然后传入密码，此案例还适用于ssh和sftp
+        spawn /usr/bin/scp -P2200 $i trade@$Ip:$Des_Dir
+        expect "Password:"
+        send "$PassWord\r"
+        expect eof
+EOF
+    fi
+done
+```
+
+
+
+#### 5.3 导入报错
+
+impdp导入报错：
 
 把rac2 节点停止，或者把rac2上面要有相同的DUMPFILE目录和要导入的文件 如上面的/home/oracle/dpdata/及trade20170616.dmp，
 
@@ -1271,7 +1351,6 @@ ORA-29283: invalid file operation
 [root@rac02 dmp]# chown oracle.oinstall trade20170616.dmp
 [root@rac02 dmp]# su - oracle
 [oracle@rac02 ~]$ ll /home/oracle/dmp/
-
 ```
 
 ## 4. rman backup

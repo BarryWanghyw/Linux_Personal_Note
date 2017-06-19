@@ -1081,54 +1081,11 @@ xferlog_enable=YES
 #
 # Make sure PORT transfer connections originate from port 20 (ftp-data).
 connect_from_port_20=YES
-#
-# If you want, you can arrange for uploaded anonymous files to be owned by
-# a different user. Note! Using "root" for uploaded files is not
-# recommended!
-#chown_uploads=YES
-#chown_username=whoever
-#
-# The name of log file when xferlog_enable=YES and xferlog_std_format=YES
-# WARNING - changing this filename affects /etc/logrotate.d/vsftpd.log
-#xferlog_file=/var/log/xferlog
-#
+
 # Switches between logging into vsftpd_log_file and xferlog_file files.
 # NO writes to vsftpd_log_file, YES to xferlog_file
 xferlog_std_format=YES
-#
-# You may change the default value for timing out an idle session.
-#idle_session_timeout=600
-#
-# You may change the default value for timing out a data connection.
-#data_connection_timeout=120
-#
-# It is recommended that you define on your system a unique user which the
-# ftp server can use as a totally isolated and unprivileged user.
-#nopriv_user=ftpsecure
-#
-# Enable this and the server will recognise asynchronous ABOR requests. Not
-# recommended for security (the code is non-trivial). Not enabling it,
-# however, may confuse older FTP clients.
-#async_abor_enable=YES
-#
-# By default the server will pretend to allow ASCII mode but in fact ignore
-# the request. Turn on the below options to have the server actually do ASCII
-# mangling on files when in ASCII mode.
-# Beware that on some FTP servers, ASCII support allows a denial of service
-# attack (DoS) via the command "SIZE /big/file" in ASCII mode. vsftpd
-# predicted this attack and has always been safe, reporting the size of the
-# raw file.
-# ASCII mangling is a horrible feature of the protocol.
-#ascii_upload_enable=YES
-#ascii_download_enable=YES
-#
-# You may fully customise the login banner string:
-#ftpd_banner=Welcome to blah FTP service.
-#
-# You may specify a file of disallowed anonymous e-mail addresses. Apparently
-# useful for combatting certain DoS attacks.
-#deny_email_enable=YES
-# (default follows)
+
 #banned_email_file=/etc/vsftpd/banned_emails
 #
 # You may specify an explicit list of local users to chroot() to their home
@@ -1163,6 +1120,27 @@ pasv_enable=YES
 pasv_min_port=40000
 pasv_max_port=40020
 pasv_promiscuous=YES
+
+1 增加组 groupadd  ftpgroup
+2 修改/etc/vsftpd/vsftpd.conf 
+    将底下三行  
+    #chroot_list_enable=YES 
+    # (default follows) 
+    #chroot_list_file=/etc/vsftpd.chroot_list 
+    改为 
+    chroot_list_enable=YES 
+    # (default follows) 
+    chroot_list_file=/etc/vsftpd/chroot_list 
+3 增加用户 useradd -g ftpgroup -d /dir/to -M ftpuser	# -M 意思是不自动创建家目录/home/ftpuser.
+4 设置用户口令 passwd ftpuser
+5 编辑文件: /etc/vsftpd/chroot_list 
+   内容为ftp用户名,每个用户占一行,如： 
+peter 
+john 
+6 重新启动vsftpd 
+[root@home vsftpd]# /sbin/service vsftpd restart
+
+usermod -d /var/ftp/data/trade  ht01
 
 [root@web02 vsftpd]# mkdir -p /data/
 [root@web02 vsftpd]# chkconfig --level 35 vsftpd on
@@ -2894,13 +2872,15 @@ kill 进程或用脚本stop服务
    fsck.ext3扫描、修正完文件系统后，根据提示可能需要重启系统。如果没有提示重启系统，也需要reboot来重启系统。
    fileserver:~# reboot  ---重启系统
    在重启系统的过程中，fsck会对文件系统进行扫描，如下：
+   ```
 
 
    fsck扫描完以后，会启动到系统的登录界面，不需要进行任何干涉。
-    
+​    
    再次重新启动系统，系统可以正常启动。
-    
+​    
    至此服务器maint_samba使用fsck修复文件系统完成。
    ```
 
    ​
+   ```

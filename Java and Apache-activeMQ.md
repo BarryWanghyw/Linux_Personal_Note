@@ -351,7 +351,22 @@ tempUsage表示非持久化消息存储的临时内存大小。
 
   检测分析和采样分析
 
-  ​
+##2.2 zabbix监控前置tomcat
+
+```shell
+/data/trade/realweb/tomcat_tradeweb/bin/catalina.sh
+JAVA_OPTS="-Duser.timezone=GMT+08 -Xms1024m -Xmx8192m -Xss256k"
+JAVA_OPTS="$JAVA_OPTS -server -XX:PermSize=64M -XX:MaxPermSize=256m"
+CATALINA_OPTS="$CATALINA_OPTS
+-Dcom.sun.management.jmxremote
+-Djava.rmi.server.hostname=172.20.10.12
+-Dcom.sun.management.jmxremote.port=10014
+-Dcom.sun.management.jmxremote.ssl=false
+-Dcom.sun.management.jmxremote.authenticate=false"
+```
+
+
+
 
 # 2. 配置Java远程监控授权（Java Mission Control）
 
