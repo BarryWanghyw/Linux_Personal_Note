@@ -800,7 +800,7 @@ Tablespace dropped.
 
 
 
-#### 34.2 Missing
+#### 3.4.2 Missing
 
 有报错：  http://m.blog.itpub.net/29047826/viewspace-1243775/
 
@@ -1272,6 +1272,894 @@ ORA-29283: invalid file operation
 [root@rac02 dmp]# su - oracle
 [oracle@rac02 ~]$ ll /home/oracle/dmp/
 
+```
+
+## 4. rman backup
+
+```sql
+RMAN开启归档以及备份
+
+开启归档以及备份
+1,开启数据库的归档模式：
+检查归档是否开启：sql > archive log list ;
+
+如未开启，则使用如下命令开启归档：
+Ps：开启归档时，数据库必须处于mount状态，所以需要先关闭正在运行的数据库。
+sql>shutdown immediate;（启动归档前先要停止数据库）
+sql>startup mount;（数据库以mount方式启动）
+sql>alter database archivelog;（启动数据库归档）
+sql>alter system set log_archive_dest_1=" location=/data/orcl/archivelog" ;（改变归档日志路径，windows系统使用盘符）
+sql>alter database open;（打开数据库）
+sql>archive log list;（查看归档是否已经打开）
+
+ps：数据库重新启动，归档模式会自动开启。
+ps：关闭归档
+alter database noarchivelog;
+
+2， 相关参数的设置：
+rman优化配置：
+rman target /
+rman > show all ；可以查看rman的相关参数配置：
+
+CONFIGURE DEVICE TYPE DISK PARALLELISM 4 BACKUP TYPE TO BACKUPSET; 通过parallelism参数来指定同时"自动"创建多少个通道 ，来提高rman的速度。
+rman通道数的设置不是越多,默认情况下，自动分配通道的并行度为1.通道个数的设置根据cpu，内存以及I/O的性能等实际情况来决定， 可以设置通道个数为cpu核心数，这里我们设置为4.
+
+CONFIGURE RETENTION POLICY TO RECOVERY WINDOW OF 30 DAYS ; 设置保留30天的备份。
+备份管理器RMAN提供了CONFIGURE RETENTION POLICY命令设置备份保存策略，即设置备份文件保留多长时间。RMAN会将超出时间的备份文件标识为废弃（obsolete）。命令REPORT OBSOLETE和DELETE OBSOLETE分别用来查看废弃的文件和删除废弃的文件。RMAN跟踪备份的数据文件、控制文件、归档日志文件，并确定哪些需要保存，哪些需要标记为废弃。但RMAN不自动删除废弃的备份文件。
+CONFIGURE CONTROLFILE AUTOBACKUP ON; 设置自动备份控制文件。
+
+3， 归档模式下使用rman备份数据库：
+
+oracle11G中rman增量备份只分为0级和1级备份，0级是全备份，1级是增量备份。并且1级备份必须基于0级备份。
+
+level 0全备份：
+
+backup incremental level 0 database ;
+
+备份归档日志：
+
+backup incremental level 0 database plus archivelog ;
+
+备份归档日志，并定义格式：
+
+backup incremental level 0 database format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_%I_hot_0_full.bak' plus archivelog format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_%I_hot_0_arc.bak' ;
+%d database name,
+%s backup set ID,
+%p backup piece ID,
+%I DBID
+
+backup incremental level 0 database format '/data/rman_bak/hot_bak/%d_%s_%p_%I_hot_0_full.bak'
+plus archivelog
+
+level 1 增量备份：
+
+backup incremental level 1 database ;
+
+备份归档日志：
+
+backup incremental level 1 database plus archivelog ;
+
+备份归档日志，并定义格式：
+
+backup incremental level 1 database format '/home/oracle/rman_bak/hot_bak/full_%d_%s_%p_%I_hot_1_incre.bak' plus archivelog format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_%I_hot_1_arc.bak' ;
+
+%d database name,
+%s backup set ID,
+%p backup piece ID,
+%I DBID
+
+PS： 也可以通过如下命令设置备份通道，以及备份命令
+rman多通道备份脚本：
+
+run{
+sql 'alter system switch logfile';
+allocate channel d1 type disk;
+allocate channel d2 type disk;
+allocate channel d3 type disk;
+allocate channel d4 type disk;
+backup incremental level 1 database plus archivelog format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_hot_0.bak';
+release channel d1;
+release channel d2;
+release channel d3;
+release channel d4;
+}
+
+4 设置rman的备份策略以及自动备份：
+
+常用RMAN脚本以及命令 ：
+
+作用凌晨5：00执行备份，并且在备份集以及控制文件中删除之31天前过期的归档日志 。
+周日执行全备份，周一到周六执行增量备份。
+
+RMAN自动备份脚本：
+
+start_rman.sh:
+
+. /home/oracle/.bash_profile
+SH_HOME=/home/oracle/rmanscripts
+export SH_HOME
+DATE=date +%Y%m%d%H week=date +"%w"
+
+confirm whether the oracle is running
+ps -ef|grep dbw0_$ORACLE_SID |grep -v grep >>/dev/null
+
+begin to backup
+if [ $? -eq 0 ];
+then
+if [ $week = "0" ];
+then
+rman target / @$SH_HOME/fullback.sql log=$SH_HOME/logs/rmanfullback_`date +%Y%m%d_%H`.log
+else
+rman target / @$SH_HOME/incrback.sql log=$SH_HOME/logs/rmanincrback_`date +%Y%m%d_%H`.log
+fi
+fi
+
+fullback.sql
+
+run{
+sql 'alter system switch logfile';
+backup incremental level 0 database format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_%I_hot_0_full.bak' plus archivelog format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_%I_hot_0_arc.bak' ;
+DELETE ARCHIVELOG ALL COMPLETED BEFORE 'SYSDATE-31';
+delete noprompt obsolete; }
+该脚本会自动删除31天前的归档日志，以及RETENTION POLICY 设置的策略中废弃 的备份文件，物理文件也会被删除。
+
+incrback.sql
+
+run { sql 'alter system switch logfile';
+backup incremental level 1 database format '/home/oracle/rman_bak/hot_bak/full_%d_%s_%p_%I_hot_1_incre.bak' plus archivelog format '/home/oracle/rman_bak/hot_bak/%d_%s_%p_%I_hot_1_arc.bak' ;
+DELETE ARCHIVELOG ALL COMPLETED BEFORE 'SYSDATE-31';
+delete noprompt obsolete;
+}
+
+PS：delete expired删除的是那些本来RMAN以为存在但是实际上在磁盘或者磁带上已经被删除了的信息，删除的只是RMAN资料库中的记录；
+delete obsolete则删除旧于备份保留策略定义的备份数据同时也更新RMAN资料库以及控制文件。
+实际上并没有删除任何的物理文件。
+
+然后再在root下设置crontab -e
+
+0 5 * * * su - oracle -c /home/oracle/rmanscripts/start_rman.sh
+
+5， rman的热备份必须要开归档所以每天会产生很多的归档日志，归档日志如果不及时清除，导致空间占满，会对数据库造成严重影响，所以必须
+管理好归档日志
+第一：做好监控：
+通过zabbix 监控好 归档日志所在的磁盘的空间使用情况 ，该例子中归档日志目录在：
+/data/orcl/archivelog中
+可以监控：／ｄａｔａ目录。
+第二：DELETE ARCHIVELOG ALL COMPLETED BEFORE 'SYSDATE-31'; 通过该语句可以设置，删除归档的物理文件
+
+第三：辅助手段： 定期压缩归档日志，并且删除已经压缩的归档日志：
+mkdir -p /data/orcl/archivelog/backup
+在如下目录中建立脚本文件：/home/oracle/rmanscripts
+archivelog_zip_remove.sh
+
+. /home/oracle/.bash_profile
+SH_HOME=/home/oracle/rmanscripts
+export SH_HOME
+find /data/orcl/archivelog -mtime +31 -name "*.dbf" -exec zip /data/orcl/archivelog/backup/bak_arc-20`date "+%y%m%d"`.zip {} \; -exec rm -rf {} \; > /dev/null
+rman target / @$SH_HOME/crosscheck_expired_arc.sql log=$SH_HOME/logs/crosscheck_expired_arc_`date +%Y%m%d_%H`.log
+
+crosscheck_expired_arc.sql
+
+内容如下：
+run{
+crosscheck archivelog all ;
+delete expired archivelog all ;
+}
+
+PS:如果归档日志被物理删除，需要在rman中执行如下命令：
+RMAN>
+crosscheck archivelog all ; 可以看到有8个日志文件已被物理删除。
+
+delete expired archivelog all ;在rman删除归档日志记录
+
+6,备份文件的管理：
+第一：监控备份空间：
+/home/oracle/rman_bak/hot_bak
+和/opt/app/oracle/flash_recovery_area/TEST1/autobackup所在的磁盘空间大小。
+
+RMAN的备份文件：
+通过参数设置：
+CONFIGURE RETENTION POLICY TO RECOVERY WINDOW OF 30 DAYS ; 设置保留30天的备份。
+通过在备份脚本中执行：delete noprompt obsolete;物理删除RETENTION POLICY 内废弃的备份文件。
+
+report obsolete ; 查看废弃的备份。 文件将会被物理删除。
+
+第二部分：rman备份的数据恢复。
+1， rman控制文件，spfile文件以及全库数据文件丢失的恢复
+rman控制文件，spfile文件以及全库数据文件丢失的恢复
+注意：一定要开启rman的自动备份控制文件功能。
+否则就只能从别处的控制文件拷贝过来（oracle一般会有两到三份完全相同的控制文件在不同的位置）
+
+ps： 查看数据文件位置：
+select name from v$datafile;
+查看控制文件位置：
+select name from v$controlfile;
+
+oracle的rman控制文件，spfile文件以及全库数据文件丢失的恢复的恢复：
+
+SQL> startup
+ORA-01078: failure in processing system parameters
+LRM-00109: could not open parameter file '/db/app/oracle/product/11.2.0/dbhome_1/dbs/initorcl.ora'
+SQL>此处可见已经找不到启动参数文件
+
+首先恢复spfile文件：
+RMAN> connect target /
+connected to target database (not started)
+
+RMAN> set dbid 1455072901 #dbid号可通过查看备份文件得到或者select dbid from v$database
+executing command: SET DBID
+ps：如果设置了自动备份，dbid这一步可以省略、
+
+RMAN> startup nomount;#RMAN可从默认的Oracle配置参数中启动到nomount状态
+startup failed: ORA-01078: failure in processing system parameters
+LRM-00109: could not open parameter file '/db/app/oracle/product/11.2.0/dbhome_1/dbs/initorcl.ora'
+
+starting Oracle instance without parameter file for retrieval of spfile
+Oracle instance started
+Total System Global Area 159019008 bytes
+Fixed Size 1335192 bytes
+Variable Size 75497576 bytes
+Database Buffers 79691776 bytes
+Redo Buffers 2494464 bytes
+
+RMAN> restore spfile from '/opt/app/oracle/flash_recovery_area/ORCL/autobackup/2016_11_09/o1_mf_s_927473920_d25nn0pk_.bkp';
+
+#控制文件备份地址
+Starting restore at 06-MAY-11
+using channel ORA_DISK_1
+
+channel ORA_DISK_1: restoring spfile from AUTOBACKUP /db/bak/ctf/ORCL_ctf_bak_c-1274918132-20110506-02
+channel ORA_DISK_1: SPFILE restore from AUTOBACKUP complete
+Finished restore at 06-MAY-11
+恢复参数文件成功！！！！
+关闭数据库实例，重新从刚才已恢复的参数文件启动数据库实例。
+RMAN> shutdown immediate;
+Oracle instance shut down
+
+RMAN> startup nomount;
+
+connected to target database (not started)
+Oracle instance started
+
+Total System Global Area 422670336 bytes
+Fixed Size 1336960 bytes
+Variable Size 322963840 bytes
+Database Buffers 92274688 bytes
+Redo Buffers 6094848 bytes
+以上参数可见原先SGA的配置和默认RMAN启动调用的参数是不同滴。。。。
+
+接下来恢复控制文件
+RMAN> restore controlfile from '/opt/app/oracle/flash_recovery_area/ORCL/autobackup/2016_11_09/o1_mf_s_927473920_d25nn0pk_.bkp';#备份控制文件路径
+
+Starting restore at 06-MAY-11
+using channel ORA_DISK_1
+
+channel ORA_DISK_1: restoring control file
+channel ORA_DISK_1: restore complete, elapsed time: 00:00:01
+output file name=/db/app/oracle/oradata/orcl/control01.ctl
+output file name=/db/app/oracle/flash_recovery_area/orcl/control02.ctl
+Finished restore at 06-MAY-11
+控制文件恢复成功～！！！！
+
+此时就可以启动数据库到mount状态
+RMAN> alter database mount;
+
+继续恢复数据~
+RMAN> restore database;
+RMAN> recover database;
+RMAN>alter database open resetlogs;
+以上三步无报错，提示成功~
+
+PS： restore database 与recover database 区别:
+restore 只是用备份来还原,recover是用archivelog或者online log进行恢复。
+
+2， RMAN丢失联机redolog的恢复
+RMAN丢失联机redolog的恢复
+第一：丢失非当前的联机redolog
+（1）查看哪些redolog是非当前文件
+SQL> select GROUP#, ARCHIVED,STATUS, FIRST_TIME from V$log;
+
+GROUP#  ARC STATUS           FIRST_TIME
+1   YES INACTIVE         18-7月 -12
+2   NO  CURRENT          19-7月 -12
+3   YES UNUSED
+SQL> select group#,member from V$logfile;
+
+GROUP#                              MEMBER
+3                      D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO03.LOG
+2                      D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO02.LOG
+1                      D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO01.LOG
+SQL>
+可以看出来一个文件是当前联机redolog，一个是非当前，一个还没有使用，我们删除这个INACTIVE状态的，也就是D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO01.LOG
+（2）删除非联机的redolog
+SQL> shutdown immediate;
+数据库已经关闭。
+已经卸载数据库。
+Oracle 例程已经关闭。
+SQL> host del D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO01.LOG
+SQL> startup mount;
+ORACLE 例程已经启动。
+
+Total System Global Area 535662592 bytes
+Fixed Size 1334380 bytes
+Variable Size 209716116 bytes
+Database Buffers 318767104 bytes
+Redo Buffers 5844992 bytes
+数据库装载完毕。
+SQL> alter database open;
+alter database open
+
+第 1 行出现错误:
+ORA-00313: 无法打开日志组 1 (用于线程 1) 的成员
+ORA-00312: 联机日志 1 线程 1: 'D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO01.LOG'
+SQL>
+（3）恢复redolog
+SQL> alter database clear logfile group 1;
+数据库已更改。
+SQL> alter database open;
+数据库已更改。
+SQL>
+由于丢失的并不是当前的联机redolog，不会造成数据丢失，只需要重建改组redolog就可以了。
+————————————————————————————————————————————————————————————————————————————
+
+第二：丢失当前的联机redolog
+这种情况一般会丢失数据，即使有备份，恢复的时候也是只能不完全恢复。有时候运气好，这段时间没有数据改变，估计不会丢失数据
+（1）查找当前的联机redolog
+SQL> select GROUP#, ARCHIVED,STATUS, FIRST_TIME from V$log;
+
+GROUP# ARC STATUS           FIRST_TIME
+1 YES UNUSED           18-7月 -12
+2 NO  CURRENT          19-7月 -12
+3 YES UNUSED
+SQL> select group#,member from V$logfile;
+
+GROUP#           MEMBER
+3             D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO03.LOG
+2             D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO02.LOG
+1             D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO01.LOG
+SQL>
+（2）删除当前联机redolog
+SQL> shutdown immediate;
+数据库已经关闭。
+已经卸载数据库。
+ORACLE 例程已经关闭。
+SQL> host del D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO02.LOG
+SQL> startup mount;
+ORACLE 例程已经启动。
+Total System Global Area 535662592 bytes
+Fixed Size 1334380 bytes
+Variable Size 209716116 bytes
+Database Buffers 318767104 bytes
+Redo Buffers 5844992 bytes
+数据库装载完毕。
+SQL> alter database open;
+alter database open
+
+第 1 行出现错误:
+ORA-00313: 无法打开日志组 2 (用于线程 1) 的成员
+ORA-00312: 联机日志 2 线程 1: 'D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO02.LOG'
+SQL>
+（3）尝试修复联机重做日志
+SQL> alter database clear logfile group 2;
+alter database clear logfile group 2
+
+第 1 行出现错误:
+ORA-00350: 日志 2 (实例 orcl 的日志, 线程 1) 需要归档
+ORA-00312: 联机日志 2 线程 1: 'D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO02.LOG'
+SQL>
+看来用恢复非当前联机redolog那一招不管用
+
+（4）执行不完全恢复
+如果有备份并且是归档模式，可以尝试用过备份进行不完全恢复
+RMAN> restore database;
+启动 restore 于 19-7月 -12
+分配的通道: ORA_DISK_1
+通道 ORA_DISK_1: SID=148 设备类型=DISK
+
+通道 ORA_DISK_1: 正在开始还原数据文件备份集
+通道 ORA_DISK_1: 正在指定从备份集还原的数据文件
+通道 ORA_DISK_1: 将数据文件 00001 还原到 D:\APP\ADMINISTRATOR\ORADATA\ORCL\SYSTE
+M01.DBF
+通道 ORA_DISK_1: 将数据文件 00002 还原到 D:\APP\ADMINISTRATOR\ORADATA\ORCL\SYSAU
+X01.DBF
+通道 ORA_DISK_1: 将数据文件 00003 还原到 D:\APP\ADMINISTRATOR\ORADATA\ORCL\UNDOT
+BS01.DBF
+通道 ORA_DISK_1: 将数据文件 00004 还原到 D:\APP\ADMINISTRATOR\ORADATA\ORCL\USERS
+01.DBF
+通道 ORA_DISK_1: 将数据文件 00005 还原到 D:\APP\ADMINISTRATOR\ORADATA\ORCL\PRODU
+CT.DBF
+通道 ORA_DISK_1: 正在读取备份片段 D:\APP\ADMINISTRATOR\FLASH_RECOVERY_AREA\ORCL\
+BACKUPSET\2012_07_19\O1_MF_NNNDF_TAG20120719T155846_80HHKQDP_.BKP
+通道 ORA_DISK_1: 段句柄 = D:\APP\ADMINISTRATOR\FLASH_RECOVERY_AREA\ORCL\BACKUPSE
+T\2012_07_19\O1_MF_NNNDF_TAG20120719T155846_80HHKQDP_.BKP 标记 = TAG20120719T155
+846
+通道 ORA_DISK_1: 已还原备份片段 1
+通道 ORA_DISK_1: 还原完成, 用时: 00:00:45
+完成 restore 于 19-7月 -12
+
+RMAN> recover database;
+启动 recover 于 19-7月 -12
+使用通道 ORA_DISK_1
+
+正在开始介质的恢复
+无法恢复介质
+DBGANY: Mismatched message length! [16:29:15.562] (krmiduem)
+DBGANY: Mismatched message length! [16:29:15.562] (krmiduem)
+RMAN-00569: =============== ERROR MESSAGE STACK FOLLOWS ===============
+RMAN-00571: ===========================================================
+RMAN-00600: internal error, arguments [3045] [] [] [] []
+RMAN-00571: ===========================================================
+RMAN-00569: =============== ERROR MESSAGE STACK FOLLOWS ===============
+RMAN-00571: ===========================================================
+RMAN-03002: recover 命令 (在 07/19/2012 16:29:15 上) 失败
+ORA-00283: recovery session canceled due to errors
+RMAN-11003: 在分析/执行 SQL 语句期间失败: alter database recover if needed
+start
+ORA-00283: 恢复会话因错误而取消
+ORA-00313: 无法打开日志组 2 (用于线程 1) 的成员
+ORA-00312: 联机日志 2 线程 1: 'D:\APP\ADMINISTRATOR\ORADATA\ORCL\REDO02.LOG'
+ORA-27041: 无法打开文件
+OSD-04002: 无法打开文件
+O/S-Error: (OS 2) 系统找不到指定的文件。
+修复失败了，只能强制恢复了。
+SQL> alter system set "_allow_resetlogs_corruption"=true scope=spfile;
+系统已更改。
+SQL>
+《这个隐藏的初始化参数是oracle在open的时候会跳过一些一致性检查》
+SQL> recover database until cancel;
+ORA-00279: 更改 1475265 (在 07/19/2012 15:58:47 生成) 对于线程 1 是必需的
+ORA-00289: 建议:
+D:\APP\ADMINISTRATOR\FLASH_RECOVERY_AREA\ORCL\ARCHIVELOG\2012_07_19\O1_MF_1_2_%U_.ARC
+ORA-00280: 更改 1475265 (用于线程 1) 在序列 #2 中
+指定日志: {<RET>=suggested | filename | AUTO | CANCEL}
+cancel
+介质恢复已取消。
+SQL> alter database open resetlogs;
+数据库已更改。
+由于执行了强制恢复，导致可能有些数据丢失，需要手动录入一些数据
+3， RMAN备份与恢复之基于时间点的不完全恢复
+RMAN备份与恢复之基于时间点的不完全恢复
+一 不完全恢复讲解
+RMAN恢复分为完全恢复和不完全恢复。完全恢复，顾名思义，就是基于全备的基础上对数据进行恢复。但是真实环境中这样的恢复用得很少。相反，不完全恢复使用较多。不完全恢复，也就是通过备份文件，恢复某一个误操作或者是某一段时间丢失的数据。不完全恢复可以基于时间，基于SCN，基于日志序列号、基于备份控制文件。本文讲解基于时间点的不完全恢复。
+
+二 基于时间点的不完全恢复讲解
+
+既然要做恢复，我们首先要有备份文件，我们使用RMAN工具对数据库进行备份。备份完全后，我们切换到SQL Plus中，打开显示完整时间的选项，因为基于时间点的恢复需要一个时间点，打开这个选项后，一是可以使我们更方便的查看到操作过程中经历的时间，二是保证时间点选取的精确性。
+每一次RESETLOGS就会使INCARNATION+1，如果想要恢复到之前INCARNATION的scn（或者时间点），就需要先跳转到之前的INCARNATION。跳转到之前的INCARNATION，我们可以使用如下命令：
+RESET DATABASE TO INCARNATION <INCARNATION号>。恢复完成后，我们需要使用RESETLOGS方式打开数据库，此时我们登录到SQL Plus中，查看表只中的数据，如果能够成功查询到，证明恢复成功。如果不能查询到，第一考虑时间点是否选择正确，第二确认INCARNATION号是否正确，第三数据是否保持了一致性。因为我们重置了日志，所以需要重新备份数据库。至此，完整的恢复操作完成。
+
+三 基于时间点的恢复模拟
+
+Step 1，SQL Plus中确保数据库在归档模式，RMAN中备份数据库
+SQL> ARCHIVE LOG LIST;
+Database log mode Archive Mode
+Automatic archival Enabled
+Archive destination USE_DB_RECOVERY_FILE_DEST
+Oldest online log sequence 68
+Next log sequence to archive 70
+Current log sequence 70
+[oracle@orcl ~]$ rman target /
+
+RMAN> BACKUP DATABASE;
+Step 2，SQL Plus中打开显示完整时间
+SQL> CONN SCOTT/tiger;
+Connected.
+SQL> SET TIME ON;
+09:53:34 SQL>
+
+Step 3，SQL Plus创建测试表
+09:53:34 SQL> CREATE TABLE test(id NUMBER(2),name VARCHAR(20));
+
+Table created.
+
+09:53:59 SQL>
+
+Step 4，SQL Plus插入数据，并提交，为了保持数据一致性，最好使用sys用户手动切换日志（ALTER SYSTEM SWITCHLOGFILE）和触发CKPT（ALTERSYSTEM CHECKPOINT）
+09:53:59 SQL> INSERT INTO test VALUES(1,'justdb');
+
+1 row created.
+
+09:54:16 SQL> COMMIT;
+
+Commit complete.
+
+09:54:25 SQL> SELECT * FROM test;
+
+ID NAME
+1 justdb
+09:54:33 SQL>
+
+Step 5，SQL Plus中删除测试表
+09:54:33 SQL> DROP TABLE test PURGE;
+
+Table dropped.
+
+Step 6，SQL Plus中一致性关闭数据库
+10:00:09 SQL> SHUTDOWN IMMEDIATE;
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+10:01:57 SQL>
+
+Step 7，编辑基于时间点恢复的脚本，注意时间点的选取，此处选取为删除表的时间点（09:54:33），注意时间点尤其重要
+[oracle@orcl ~]$ vim /home/oracle/recover_data_by_time.sql
+[oracle@orcl ~]$ cat !$
+cat /home/oracle/recover_data_by_time.sql
+RUN {
+
+SET UNTIL TIME "to_date('2014-01-17 09:54:33','yyyy-mm-dd hh24:mi:ss')";
+RESTORE DATABASE;
+RECOVER DATABASE;
+}
+
+Step 8，登录到RMAN，启动数据库到MOUNT状态
+[oracle@orcl ~]$ uniread rman target /
+[uniread] Loaded history (6 lines)
+
+Recovery Manager: Release 11.2.0.3.0 - Production on Fri Jan 17 10:02:22 2014
+
+Copyright (c) 1982, 2011, Oracle and/or its affiliates. All rights reserved.
+
+connected to target database (not started)
+
+RMAN> STARTUP MOUNT;
+
+Oracle instance started
+database mounted
+
+Total System Global Area 839282688 bytes
+
+Fixed Size 2233000 bytes
+Variable Size 494931288 bytes
+Database Buffers 339738624 bytes
+Redo Buffers 2379776 bytes
+
+Step 9，RMAN中查看当前INCARNATION号，注意：如果有其他的操作，以后恢复时应该选取当前查看到的INCARNATION号，使用RESET DATABASE TO INCARNATION <INCARNATION号>命令
+RMAN> LIST INCARNATION;
+
+using target database control file instead of recovery catalog
+
+List of Database Incarnations
+DB Key Inc Key DB Name DB ID STATUS Reset SCN Reset Time
+
+1 1 LARRRDB 3428598070 CURRENT 1 23-NOV-13
+Step 10，RMAN中执行基于时间点的恢复脚本
+RMAN> @ /home/oracle/recover_data_by_time.sql
+@ /home/oracle/recover_data_by_time.sql
+
+RMAN> RUN {
+
+SET UNTIL TIME "to_date('2016-11-09 09:54:33','yyyy-mm-dd hh24:mi:ss')";
+ RESTORE DATABASE;
+RECOVER DATABASE;
+}
+executing command: SET until clause
+
+Starting restore at 17-JAN-14
+allocated channel: ORA_DISK_1
+channel ORA_DISK_1: SID=21 device type=DISK
+
+channel ORA_DISK_1: starting datafile backup set restore
+channel ORA_DISK_1: specifying datafile(s) to restore from backup set
+channel ORA_DISK_1: restoring datafile 00001 to /u01/oracle/oradata/larrrdb/system01.dbf
+channel ORA_DISK_1: restoring datafile 00002 to /u01/oracle/oradata/larrrdb/sysaux01.dbf
+channel ORA_DISK_1: restoring datafile 00003 to /u01/oracle/oradata/larrrdb/undotbs01.dbf
+channel ORA_DISK_1: restoring datafile 00004 to /u01/oracle/oradata/larrrdb/users01.dbf
+channel ORA_DISK_1: reading from backup piece /u01/oracle/fast_recovery_area/LARRRDB/backupset/2014_01_17/o1_mf_nnndf_TAG20140117T094447_9fk2rhv7_.bkp
+channel ORA_DISK_1: piece handle=/u01/oracle/fast_recovery_area/LARRRDB/backupset/2014_01_17/o1_mf_nnndf_TAG20140117T094447_9fk2rhv7_.bkp tag=TAG20140117T094447
+channel ORA_DISK_1: restored backup piece 1
+channel ORA_DISK_1: restore complete, elapsed time: 00:04:16
+Finished restore at 17-JAN-14
+
+Starting recover at 17-JAN-14
+using channel ORA_DISK_1
+
+starting media recovery
+media recovery complete, elapsed time: 00:00:01
+
+Finished recover at 17-JAN-14
+
+RMAN> end-of-file
+
+Step 11，RMAN中使用RESETLOGS打开数据库
+RMAN> ALTER DATABASE OPEN RESETLOGS;
+
+database opened
+
+Step 12，SQL Plus中查看数据，如果能够正确地查看到，证明恢复成功
+[oracle@orcl ~]$ sqlplus
+[uniread] Loaded history (66 lines)
+
+SQL*Plus: Release 11.2.0.3.0 Production on Fri Jan 17 10:10:53 2014
+
+Copyright (c) 1982, 2011, Oracle. All rights reserved.
+
+Connected to:
+Oracle Database 11g Enterprise Edition Release 11.2.0.3.0 - 64bit Production
+With the Partitioning, Oracle Label Security, OLAP, Data Mining,
+Oracle Database Vault and Real Application Testing options
+
+SQL> SELECT open_mode FROM v$database;
+
+OPEN_MODE
+READ WRITE
+
+#这正是被删除掉的表中的数据
+SQL> SELECT * FROM scott.test;
+
+ID NAME
+1 justdb
+Step 13，因为重置了日志，我们需要重新在RMAN中备份
+
+RMAN> BACKUP DATABASE;
+
+4， ORACLE RMAN 还原归档日志
+ORACLE RMAN 还原归档日志
+一.备份所有归档日志文件
+
+RMAN> backup archivelog all delete input;
+二: restore archivelog 的各种选项
+
+1.恢复全部归档日志文件
+  RMAN> restore archivelog all;
+2.只恢复5到8这四个归档日志文件
+  RMAN> restore archivelog from logseq 5 until logseq 8;
+3.恢复从第5个归档日志起
+  RMAN> restore archivelog from logseq 5;
+4.恢复7天内的归档日志
+  RMAN> restore archivelog from time 'sysdate-7';
+5. sequence between 写法
+  RMAN> restore archivelog sequence between 1 and 3;
+6.恢复到哪个日志文件为止
+  RMAN> restore archivelog until logseq 3;
+7.从第五个日志开始
+  RMAN> restore archivelog low logseq 5;
+8.到第5个日志为止
+  RMAN> restore archivelog high logseq 5;
+
+  restore archivelog low logseq 1417 ;
+三:如果想改变恢复到另外路径下 则可用下面语句
+
+set archivelog destination to 'd:\backup';
+
+RMAN> run
+2> {allocate channel ci type disk;
+3> set archivelog destination to 'd:\backup';
+4> restore archivelog all;
+5> release channel ci;
+6> }
+四: rac环境下只恢复5到8这四个归档日志文件
+RMAN> restore archivelog from logseq 5 until logseq 8 thread 1;
+
+RMAN> restore archivelog from time 'sysdate-0.2';
+
+启动 restore 于 04-3月 -14
+正在启动全部恢复目录的 resync
+完成全部 resync
+使用通道 ORA_DISK_1
+
+5， RMAN异机恢复：
+Rman备份异机恢复指南
+源服务器和目的服务器的操作系统,oracle版本均一致
+源服务器:192.168.230.94
+目的服务器:192.168.230.116 只要安装oracle软件即可,不需要建库操作
+
+一:在源服务器上使用rman备份数据库,包括数据文件,归档日志文件和控制文件,参数文件的备份
+
+1,找出备份文件的位置: 找出最新，最近的一次：
+
+rman target /
+list backup of spfile;
+
+位置：/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18
+list backup of controlfile;
+
+位置：/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18
+list backup of database;
+
+位置：/home/oracle/rman_bak/hot_bak/
+
+list backup of archivelog all;
+
+位置：/home/oracle/rman_bak/hot_bak/
+
+2,并且在目标服务器上建立相同的目录,把文件拷贝到对应的目录。
+
+拷贝spfile和控制文件的备份：
+
+cd /opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18/
+
+scp *.bkp oracle@192.168.30.116:/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18/
+
+拷贝归档文件：
+
+cd /home/oracle/rman_bak/hot_bak/
+
+scp *.bak oracle@192.168.30.116:/home/oracle/rman_bak/hot_bak/
+
+拷贝口令文件：
+cd $ORACLE_HOME/dbs
+scp orapworcl oracle@192.168.30.116:/opt/app/oracle/product/11.2.0/db_1/dbs/
+
+二:在目的服务器上复制备份数据,并准备好相关的目录
+
+[oracle@orcl ~]$ mkdir -p /opt/app/oracle/admin/orcl/{adump,bdump,cdump,dpdump,udump,pfile}
+
+[oracle@orcl ~]$ mkdir -p /data/orcl
+
+[oracle@orcl ~]$ mkdir -p /opt/app/oracle/flash_recovery_area/TEST1
+
+三:在目的服务器上进行恢复
+
+目标服务器上为空数据库软件，没有实例，
+
+对于重复使用的实验环境，确保删除如下文件：
+
+cd /opt/app/oracle/product/11.2.0/db_1/dbs
+
+rm -rf initorcl.ora spfileorcl.ora
+
+[oracle@orcl ~]$ echo 'db_name=orcl' > $ORACLE_HOME/dbs/initorcl.ora
+[oracle@orcl ~]$ export ORACLE_SID=orcl
+
+[oracle@orcl ~]$ rman target /
+
+RMAN> set dbid 1445489815 ; //指定DBID,需要和源服务器的DBID一致 ,DBID通过源服务器的 select DBID from v$database 查询。
+
+RMAN> startup nomount; //启动数据库到nomount状态,这里需要前面创建initorcl.ora文件,否则将报错
+
+RMAN> restore spfile from '/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_21/o1_mf_s_928532514_d35yf40w_.bkp'; //恢复参数文件
+
+RMAN> startup nomount force; //重启实例到nomout状态
+
+RMAN> restore controlfile from '/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_21/o1_mf_s_928532514_d35yf40w_.bkp'; //恢复控制文件
+
+确保目标数据库，相应的控制文件存在：
+
+ps： 源数据库执行如下语句，查看控制文件位置：
+select name from v$controlfile;
+/data/orcl/control01.ctl /opt/app/oracle/flash_recovery_area/orcl/control02.ctl
+
+确认目标数据库控制文件，恢复完全。
+
+alter database mount ;
+将数据库启动到mount状态:
+恢复数据库的归档日志：
+
+restore archivelog all ;恢复全部的归档日志
+
+关于restore和recovery：
+
+某生产环境的数据库，每天凌晨一点会作一次备份。某天下午两点时数据库文件损害，同时数据库宕机。
+
+接着DBA开始恢复数据库。
+
+1.首先,使用最近一次的备份文件还原数据库到当天凌晨一点的状态。但是凌晨一点到下午两点的数据丢失了。
+
+2.接着,使用redo日志和归档日志，把当天凌晨一点开始的数据库操作重做一遍，直到下午两点数据库宕机前。
+
+这样数据库就一点都不差的被恢复起来了。
+
+所以，把Restore翻译为还原。Recovery翻译为恢复比较好。
+
+RMAN> restore database; //还原数据库文件
+
+restore archivelog all ;
+
+RMAN> recover database; //恢复数据库文件,这里将报错
+
+RMAN-03002: failure of recover command at 09/06/2011 17:03:51
+
+RMAN-06054: media recovery requesting unknown log: thread 1 seq 15 lowscn 547974
+
+RMAN> exit
+
+[oracle@orcl ~]
+SQL> recover database using backup controlfile until cancel;
+
+ORA-00279: change 547974 generated at 09/06/2011 16:49:11 needed for thread 1
+
+ORA-00289: suggestion :
+
+/u01/app/oracle/flash_recovery_area/ORCL/archivelog/2011_09_06/o1_mf_1_15_%u_.arc
+
+ORA-00280: change 547974 for thread 1 is in sequence #15
+
+Specify log: {<RET>=suggested | filename | AUTO | CANCEL}
+
+cancel
+
+Media recovery cancelled.
+
+SQL> alter database open resetlogs;
+
+六:RMAN异机增量恢复备份的恢复：
+
+oracle增量恢复备份的恢复：
+目标主机：
+list backup 查看备份情况。
+源主机：
+rman target /
+list backup of spfile;
+位置：/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18
+list backup of controlfile;
+位置：/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18
+list backup of database;
+位置：/home/oracle/rman_bak/hot_bak/
+list backup of archivelog all;
+拷贝spfile和控制文件的备份，
+
+cd /opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18/
+scp *.bkp oracle@192.168.30.116:/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18/
+
+对比目标主机和源主机，拷贝源主机中新增的的文件，从源主机上拷贝相应的文件到，BS Key（除了自动备份的spfile和control文件备份集外） 一定要保障连续，
+把相应的增量备份，拷贝到目标主机。
+
+cd /home/oracle/rman_bak/hot_bak/
+scp xxxx.bpk xxxx.bkp oracle@192.168.30.116:/home/oracle/rman_bak/hot_bak/
+位置：/home/oracle/rman_bak/hot_bak/
+
+目标主机数据库启动到nomount状态：
+恢复最新的控制文件：
+
+restore controlfile from '/opt/app/oracle/flash_recovery_area/TEST1/autobackup/2016_11_18/o1_mf_s_928242824_d2x3j9s4_.bkp';
+
+然后启动到mount状态：alter database mount ;
+执行如下rman命令：
+run{
+set until scn=13075991;
+restore database;
+recover database;
+}
+----最大的scn号
+ps： scn 在list backup中查看。 为当前备份中，最大的scn号，即是NEXT SCN -1 。 所得到的数字。
+
+alter database open resetlogs ;
+
+7 ,常见问题的处理;:
+第一：UNTIL CHANGE is before RESETLOGS change
+RMAN-20208: UNTIL CHANGE is before RESETLOGS change 问题小计
+
+RMAN-20208: UNTIL CHANGE is before RESETLOGS change 问题小计
+RMAN> restore database until scn 1045382;
+Starting restore at 2013-07-27 04:15:37
+using channel ORA_DISK_1
+RMAN-00571: ===========================================================
+RMAN-00569: =============== ERROR MESSAGE STACK FOLLOWS ===============
+RMAN-00571: ===========================================================
+RMAN-03002: failure of restore command at 07/27/2013 04:15:38
+RMAN-20208: UNTIL CHANGE is before RESETLOGS change
+RMAN> list incarnation;
+List of Database Incarnations
+DB Key Inc Key DB Name DB ID STATUS Reset SCN Reset Time
+
+1 1 RACDB 819075368 PARENT 1037818 2013-07-26 23:36:49
+2 2 RACDB 819075368 PARENT 1041997 2013-07-27 00:39:28
+3 3 RACDB 819075368 CURRENT 1045383 2013-07-27 01:30:52
+根据我们想恢复到SCN，明确我们应该使用incarnation 2
+RMAN> reset database to incarnation 2;
+RMAN> restore database until scn 1937286;
+RMAN> recover database until scn 1937286;
+SQL> alter database open resetlogs;
+到此问题解决！！
+
+第二 ：
+解决归档日志已满的问题 http://blog.chinaunix.net/uid-17240229-id-306718.html
+
+DELETE ARCHIVELOG ALL COMPLETED BEFORE 'SYSDATE-7';
+DELETE ARCHIVELOG ALL COMPLETED BEFORE 'SYSDATE';
+
+crosscheck archivelog all;
+delete expired archivelog all;
+
+第三：备份文件空间占满的问题解决：
+crosscheck backup ;
+delete expired backup ;
+list backup ;
+
+ps：
+report obsolete ;列出废弃备份。
+delete obsolete ; 删除废弃备份。
 ```
 
 
