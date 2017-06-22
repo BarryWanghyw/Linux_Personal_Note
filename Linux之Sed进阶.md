@@ -6,6 +6,12 @@
 
  如sed '/2/d' 指匹配含有数字2的行 然后删除此行； 
 
+```shell
+字符 / / / 在sed中作为定界符使用，也可以使用任意的定界符
+ sed 's:test:TEXT:g' 
+ sed 's|test|TEXT|g' 
+```
+
 - sed所有的命令操作不会修改原文件，只有当加上 -i 时 会直接对原文件进行修改；
 - sed 的参数要加单引号''，如sed -n '1p' file1。
 
@@ -86,6 +92,7 @@ or apple
 ```shell
 find . -name appConfig.properties | xargs sed -i 's/strade01:61616/strade02:61616/g'
 find . -name appConfig.properties | xargs sed -i 's/^env.idcard/\#env.idcard/g'
+
 [trade@web02 ~]$ cat test.txt
 1
 2
@@ -103,7 +110,36 @@ find . -name appConfig.properties | xargs sed -i 's/^env.idcard/\#env.idcard/g'
 ,6,
 ```
 
+当需要从第N处匹配开始替换时，可以使用 /Ng：
 
+```shell
+ echo sksksksksksk | sed 's/sk/SK/2g' 
+ skSKSKSKSKSK
+ echo sksksksksksk | sed 's/sk/SK/3g'
+ skskSKSKSKSK  
+ echo sksksksksksk | sed 's/sk/SK/4g'
+ skskskSKSKSK 
+```
+
+**选定行的范围：,（逗号）**
+
+所有在模板test和check所确定的范围内的行都被打印：
+
+```
+ sed -n '/test/,/check/p' file
+```
+
+打印从第5行开始到第一个包含以test开始的行之间的所有行：
+
+```
+ sed -n '5,/^test/p' file
+```
+
+对于模板test和west之间的行，每行的末尾用字符串aaa bbb替换：
+
+```
+ sed '/test/,/west/s/$/aaa bbb/' file
+```
 
 如果要匹配的目标 字符串中包含元字符，需要使用转义符“ \ ”屏蔽其特殊意义，如下给出匹配句点“ . ”元字符和“ $”元字符及“  / ”元字符的命令，
 
@@ -188,7 +224,7 @@ d表示删除整行注意是整行，但同时也不是真正的对文件中的�
      [root@localhost ruby] # sed '$d' ab              #删除最后一行
      [root@localhost ruby] # sed '1,2d' ab           #删除第一行到第二行
      [root@localhost ruby] # sed '2,$d' ab           #删除第二行到最后一行
-     [root@rhel6 ~]# sed '/^$/d' test2               #sed '/^$/d' 删除所有空行，把删除空行后的内容打印到屏幕，但test2文件本身没有变化即不会对test2本身进行操作，^$表示以$开头，而$代表以什么结尾或者行尾符，行为空时，自然一行就以$开始，那么删除以行尾符$开头的行就是把空行给删了。 #一句话，在正则表达式中，^$表示空行
+     [root@rhel6 ~]# sed '/^$/d' test2               #sed '/^$/d' 删除所有空白行，把删除空行后的内容打印到屏幕，但test2文件本身没有变化即不会对test2本身进行操作，^$表示以$开头，而$代表以什么结尾或者行尾符，行为空时，自然一行就以$开始，那么删除以行尾符$开头的行就是把空行给删了。 #一句话，在正则表达式中，^$表示空行
      
      [root@rhel6 ~]# sed '/he/d' test    #删除所有含有he字段的行。
 ```
@@ -204,7 +240,29 @@ d表示删除整行注意是整行，但同时也不是真正的对文件中的�
 [root@rhel6 ~]# sed -i '/he/d' test    #删除所有含有he字段的行。
 ```
 
+删除文件的第2行：
 
+```
+ sed '2d' file
+```
+
+删除文件的第2行到末尾所有行：
+
+```
+ sed '2,$d' file
+```
+
+删除文件最后一行：
+
+```
+ sed '$d' file
+```
+
+删除文件中所有开头是test的行：
+
+```
+ sed '/^test/'d file
+```
 
 ## 4. sed a 原有行的下一行增加一行
 
@@ -290,5 +348,112 @@ or coffee
 hello
 drink tea
 or coffee
+```
+
+
+
+## 7. 元字符集
+
+```shell
+ ^ 匹配行开始，如：/^sed/匹配所有以sed开头的行;
+ 
+ $ 匹配行结束，如：/sed$/匹配所有以sed结尾的行;
+ 
+ . 匹配一个非换行符的任意字符，如：/s.d/匹配s后接一个任意字符，最后是d;
+ 
+ * 匹配0个或多个字符，如：/*sed/匹配所有模板是一个或多个空格后紧跟sed的行;
+  
+ [] 匹配一个指定范围内的字符，如/[ss]ed/匹配sed和Sed;
+   
+ [^] 匹配一个不在指定范围内的字符，如：/[^A-RT-Z]ed/匹配不包含A-R和T-Z的一个字母开头，紧跟ed的行;
+  
+ \(..\) 匹配子串，保存匹配的字符，如s/\(love\)able/\1rs，loveable被替换成lovers;
+  
+ & 保存搜索字符用来替换其他字符，如s/love/**&**/，love这成**love**;
+  
+ \< 匹配单词的开始，如:/\<love 匹配包含以love开头的单词的行;\> 匹配单词的结束，如/love\>/匹配包含以love结尾的单词的行;
+ 
+ x\{m\} 重复字符x，m次，如：/0\{5\}/匹配包含5个0的行;
+ 
+ x\{m,\} 重复字符x，至少m次，如：/0\{5,\}/匹配至少有5个0的行;
+ 
+ x\{m,n\} 重复字符x，至少m次，不多于n次，如：/0\{5,10\}/匹配5~10个0的行;
+```
+
+
+
+## 8 sed 替换标记
+
+```shell
+ g 表示行内全面替换;
+
+ p 表示打印行;
+
+ w 表示把行写入一个文件;
+
+ x 表示互换模板块中的文本和缓冲区中的文本;
+
+ y 表示把一个字符翻译为另外的字符（但是不用于正则表达式）;
+ 
+ \1 子串匹配标记;
+
+ & 已匹配字符串标记;
+```
+
+
+
+**已匹配字符串标记&**
+
+正则表达式 \w\+ 匹配每一个单词，使用 [&] 替换它，& 对应于之前所匹配到的单词：
+
+```
+ echo this is a test line | sed 's/\w\+/[&]/g'
+ [this] [is] [a] [test] [line] 
+```
+
+所有以192.168.0.1开头的行都会被替换成它自已加localhost：
+
+```
+ sed 's/^192.168.0.1/&localhost/' file 192.168.0.1localhost
+```
+
+**子串匹配标记\1**
+
+匹配给定样式的其中一部分：
+
+```
+ echo this is digit 7 in a number | sed 's/digit \([0-9]\)/\1/' 
+ this is 7 in a number
+```
+
+命令中 digit 7，被替换成了 7。样式匹配到的子串是 7，\(..\) 用于匹配子串，对于匹配到的第一个子串就标记为 \1，依此类推匹配到的第二个结果就是 \2，例如：
+
+```
+ echo aaa BBB | sed 's/\([a-z]\+\) \([A-Z]\+\)/\2 \1/' 
+ BBB aaa
+```
+
+love被标记为1，所有loveable会被替换成lovers，并打印出来：
+
+```
+ sed -n 's/\(love\)able/\1rs/p' file
+```
+
+## 9. 变形y
+
+**变形：y命令**
+
+把1~10行内所有abcde转变为大写，注意，正则表达式元字符不能使用这个命令：
+
+```
+ sed '1,10y/abcde/ABCDE/' file
+```
+
+## 10. 打印匹配字符串的下一行
+
+```shell
+ grep -A 1 SCC URFILE 
+ sed -n '/SCC/{n;p}' URFILE 
+ awk '/SCC/{getline; print}' URFILE
 ```
 

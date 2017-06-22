@@ -43,7 +43,9 @@ select username,default_tablespace from dba_users ;
 
 
 
-## 2. 查询Oracle的版本号和实例名
+## 2. 日常查询
+
+### 2.1 查询Oracle的版本号和实例名
 
 倒数第二行就是Oracle的版本号为11.2.0.1.0，
 
@@ -84,6 +86,14 @@ SQL> select instance_name from v$instance;
 INSTANCE_NAME
 ----------------
 orcl
+```
+
+### 2.2 生产数据库密码
+
+```shell
+[root@server bankprocessor]# cd /data/trade/app/manageserver/libs
+[root@server libs]# java -cp druid-0.2.9.jar com.alibaba.druid.filter.config.ConfigTools  trade
+B5fvLH3TiQbni9/dFDDMICvdZN2qOlnMjap9McCyEi2eI/6NqEeQcrAFUcDsa4KzUS/O6IULw5MQZv5bMu11NA==					#note: 数据库的密码是trade。
 ```
 
 ## 3. 数据库的导入和导出
@@ -1243,13 +1253,13 @@ CREATE TABLESPACE  trade LOGGING  DATAFILE   '+DATA/orcl/datafile/trade.dbf' SIZ
 CREATE USER trade IDENTIFIED BY HTCH2014htch DEFAULT TABLESPACE trade  TEMPORARY TABLESPACE trade_temp;
 
 select * from dba_directories;
-create directory dpdata as '/home/oracle/dmp';
-grant read,write on directory dmp to trade;
-grant connect,resource,dba to trade01;
+create directory dpdata as '/home/oracle/dpdata';
+grant read,write on directory DPDATA to trade;
+grant connect,resource,dba to trade;
 exit;
 
 ！！！注意注意注意！！！！如下要退出SQL，！！！要在Linux命令行执行！！！
-impdp trade/HTCH2014htch@orcl DIRECTORY=DMP DUMPFILE=trade20170617.dmp remap_schema=trade:trade remap_tablespace=users:trade TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
+impdp trade/HTCH2014htch@orcl DIRECTORY=DPDATA DUMPFILE=trade_2017-06-20.dmp remap_schema=trade:trade remap_tablespace=users:trade TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
 ```
 
 #### 5.2 exp导出
@@ -2757,10 +2767,14 @@ startup pfile='/u01/app/oracle/product/11.2/db_1/dbs/initORCL.ora';
 ## 1. 常用SQL语句
 
 ```shell
+查询结算会员009近期的管理后台操作记录
+select * from T_OPERATE_LOG where f_account='009_admin' order by f_create_time desc
+009结算会员后台管理账户是：009_admin
+
 select *  from  t_f_bank_thirdpay    where  f_dealer_id=''   --第三方银行签约信息表
 
 select *  from  t_f_bank_thirdpay    where  f_dealer_id='' 第三方银行签约信息表
-
+cp appConfig.properties mail.properties ../../../../../../www/tomcat_mgr/webapps/adminweb/WEB-INF/classes/
 select * from t_t_thirdpay_order where f_order_no =''  --查询出入金失败订单sql语句
 初始状态f_status: 1
 成功状态：2

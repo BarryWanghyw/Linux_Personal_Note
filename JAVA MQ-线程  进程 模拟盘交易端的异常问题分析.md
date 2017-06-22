@@ -464,4 +464,46 @@ drwxrwxr-x 3 trade trade  4096 Jun  6 17:25 logs
 
 # 4. 采取措施
 
-## 4.1 Zabbix加监控创建进程数
+## 4.1 改变线程数为20480 
+
+root用户下，先把注释掉 *   soft    nproc     1024  《--（/etc/security/limits.d/90-nproc.conf）
+
+```shell
+[root@server ~]# vi /etc/security/limits.d/90-nproc.conf
+[root@server ~]# cat /etc/security/limits.d/90-nproc.conf
+# Default limit for number of user's processes to prevent
+# accidental fork bombs.
+# See rhbz #432903 for reasoning.
+
+#*          soft    nproc     1024
+root       soft    nproc     unlimited
+```
+
+root用户下，把/etc/security/limits.conf中hard soft的nproc改为20480和20480，
+
+```shell
+[root@server ~]# vi /etc/security/limits.conf
+[root@server ~]# grep -C 10 16384 /etc/security/limits.conf
+#
+#<domain>      <type>  <item>         <value>
+#
+
+#*               soft    core            0
+#*               hard    rss             10000
+#@student        hard    nproc           20
+#@faculty        hard    nproc           50
+#ftp             hard    nproc           0
+#@student        -       maxlogins       4
+root             soft    nproc           16384
+root             hard    nproc           16384
+*           soft   nofile       65536
+*           hard   nofile       65536
+*           soft   nproc        20480
+*           hard   nproc        20480
+
+# End of file
+```
+
+
+
+## 4.2 Zabbix加监控创建进程数
