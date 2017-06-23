@@ -65,7 +65,7 @@ Oracle Database 11g Enterprise Edition Release 11.2.0.1.0 - 64bit Production
 With the Partitioning, OLAP, Data Mining and Real Application Testing options
 ```
 
-orcl 便是实例名，
+查看实例名，orcl 便是实例名，
 
 ```sql
 [oracle@db ~]$ sqlplus
@@ -95,6 +95,18 @@ orcl
 [root@server libs]# java -cp druid-0.2.9.jar com.alibaba.druid.filter.config.ConfigTools  trade
 B5fvLH3TiQbni9/dFDDMICvdZN2qOlnMjap9McCyEi2eI/6NqEeQcrAFUcDsa4KzUS/O6IULw5MQZv5bMu11NA==					#note: 数据库的密码是trade。
 ```
+
+### 2.3 数据库的导入
+
+```shell
+只能是这个用户在哪个库下，一般库对应的是实例或地址，
+
+比如一个用户某某，那么这个用户在库一里有权限，在库二里也有权限，某某针对的是两个库，但对于数据库来说一个库下只有一个某某用户，不能针对用户查所有库，只能针对库查用户，
+
+库就是实例，实例就是库，一个库有一个或多个实例。
+```
+
+
 
 ## 3. 数据库的导入和导出
 
@@ -2271,6 +2283,57 @@ password：xs374ca
 product key：lhsw85g33x4p7leqk63hy8q28ffxzzvbxl
 serial No：193085
 ```
+
+## 2.2 连Oracle
+
+网上各种坑的教程：
+
+网上各种坑的教程：比如说要在windows上面配置oracle的环境变量--》这个实际是不需要配置的，因为oracle的环境变量是在安装oracle的时候配置的，oracle装在那个服务器上面就在那里配环境变量，而PL/SQL连oracle根本就不需要配置环境变量。
+
+网上各种坑的教程：比如说下面的报错：Initialization error，说要下载32位的oracle client，实际应该下载 64位的client.
+
+```shell
+输入连接的账户和密码
+Database输入：192.168.x.x:1521/instance，其中192.168.x.x为数据库IP，1521为端口号，instance是实例名，通过select instance_name from v$instance;语句查看，一般实例名为orcl。
+```
+
+![](pic/QQ截图20170622165013.png)
+
+有报错如下图：
+
+![](pic/QQ截图20170622172054.png)
+
+
+
+解决方案：
+
+从oracle之官网下载，直接百度输入关键字：Oracle Instant Client Downloads，
+
+第一个就是，打开网页http://www.oracle.com/technetwork/database/features/instant-client/index-097480.html
+
+--》Instant Client for Microsoft Windows (x64) 
+
+--》Accept License Agreement --》instantclient-basic-win-x86-64-11.2.0.1.0.zip （11.2.0.1.0和Oracle的版本号相同），
+
+--》输入注册和账号和密码，没有的话注册一个就可以啦，然后下载到本地电脑，
+
+--》解压到任意安全位置，把路径复制下来如D:\instantclient-basic-win-x86-64-11.2.0.1.0\instantclient_11_2\oci.dll
+
+--》先点击取消，然后可进入没有登录的plsql，
+
+--》在工具中选择首选项，
+
+![](pic/QQ截图20170623110023.png)
+
+
+
+--》在首选项的连接里设置oci库的地址，即为instant client 中的oci.dll文件的地址（注意一定要有oci.dll)，保存后重新打开plsql，就可以正常连接了。
+
+![](pic/QQ截图20170623110139.png)
+
+
+
+![](pic/微信图片_20170622162634.jpg)
 
 # 三、 Oracle的安装
 
