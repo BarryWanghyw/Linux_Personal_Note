@@ -225,38 +225,6 @@ grant read,write on directory dpdata to trade05;
 
 # Fixed variable
 date=`date +%F`
-user=trade05
-passwd=trade02
-dir="dpdata"
-ex_tables="('T_T_HOLD_H','T_F_FUND_FLOW_H','T_T_TRADE_H','T_NOTICE_H')"
-
-# Query all table names that need to be exported
-sqlplus ${user}/${passwd} <<EOF
-set heading off
-spool /tmp/par.file
-select owner||'.'||table_name||','||chr(10) from dba_tables where owner in ("${user}") and table_name not in ${ex_tables} order by owner;
-select ')' from dual;
-spool off
-exit;
-EOF
-
-# table names processing
-sed -ri '/SQL|\)|rows/d' /tmp/par.file
-t=`cat /tmp/par.file`
-n=`echo $t | sed 's/ //g'`
-
-# expdp output files
-expdp $user/$passwd schemas=$user exclude=TABLE:\" IN ${ex_tables}\" directory=$dir dumpfile=${user}_01_$date\.dmp
-expdp $user/$passwd tables=${ex_tables} CONTENT=METADATA_ONLY directory=$dir dumpfile=${user}_02_${date}.dmp
-```
-
-
-
-```shell
-#!/bin/bash
-
-# Fixed variable
-date=`date +%F`
 user=trade02
 passwd=trade02
 dir="DUMP_DIR"
@@ -290,6 +258,24 @@ expdp $user/$passwd tables=${ex_tables} CONTENT=METADATA_ONLY directory=$dir dum
 ##先导2，再导1#
 
 impdp strade/oracle@orcl DIRECTORY=dump_dir DUMPFILE=expdp20170503.dmp remap_schema=trade:strade remap_tablespace=users:strade01 TABLE_EXISTS_ACTION=REPLACE transform=oid:n<可选，OID重复的时候需要添加>
+```
+
+
+
+```shell
+#!/bin/bash
+
+#set environment variable
+source /home/oracle/.bash_profile
+BACKUP_DIR=/data/oracle_backup/backups
+cd $BACKUP_DIR
+day=`/bin/date +%F-%H`
+
+/data/oracle/product/11.2.0/db_1/bin/exp trade/HTCH2014htch@orcl file=${BACKUP_DIR}/backup_full_real_$day.dmp log=${BACKUP_DIR}/backup_full_real_$day.log > /dev/null
+
+/bin/gzip ${BACKUP_DIR}/backup_full_real_$day.dmp
+
+/bin/find $BACKUP_DIR -mtime +10 -delete
 ```
 
 

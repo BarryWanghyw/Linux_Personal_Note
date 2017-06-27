@@ -2746,7 +2746,9 @@ session     required      pam_unix.so
 
 # 63 各种升级问题
 
-## 63.1 字符集报错
+## 63.1 字符集报错,  编码问题
+
+#### 63.1.1 set ff=unix
 
 进程启动报错
 
@@ -2755,6 +2757,35 @@ session     required      pam_unix.so
 ```shell
 /:set ff=unix
 ```
+
+#### 63.1.2 tomcat 启动时报错
+
+```shell
+zh_CN.UTF-8
+en_US.UTF-8
+zh_CN.en_US.UTF-8   #中文英文的utf8
+export LANG=zh_CN.UTF-8 
+export LANG=en_US
+export LC_ALL="en_US.utf8"
+export LANG="en_US"
+
+CentOS Linux启动出现tomcat乱码的解决方案    
+在/etc/profile文件里加入    
+export LC_ALL="zh_CN.en_US.UTF-8"
+或export LC_ALL="zh_CN.UTF-8"
+source /etc/profile
+```
+
+#### 63.1.3 tomcat--> conf/server.xml-->URIEncoding=”UTF-8”
+
+```xml
+    <Connector port="7843" address="web02" protocol="org.apache.coyote.http11.Http11NioProtocol"
+               connectionTimeout="60000" enableLookups="false" maxKeepAliveRequests="-1" keepAliveTimeout="60000" SSLEnabled="true"
+               maxThreads="8000"  minSpareThreads="500" maxSpareThreads="5000" acceptCount="12000" scheme="https" secure="true"
+               clientAuth="false" keystoreFile="tomcat.keystore" keystorePass="holysky" sslProtocol="TLS" URIEncoding="UTF-8" />
+```
+
+
 
 ## 63.2 迁移时或升级时删除日志文件
 
