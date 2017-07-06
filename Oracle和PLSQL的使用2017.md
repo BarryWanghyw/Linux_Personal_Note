@@ -1132,7 +1132,7 @@ ITPUB论坛 | chinaunix博客 | chinaunix论坛
 北京皓辰网域网络信息技术有限公司. 版权所有
 ```
 
-### 4. 正常终止expdp/impdp进程运行
+## 4. 正常终止expdp/impdp进程运行
 
 
 
@@ -1179,9 +1179,9 @@ STOP_JOB顺序关闭执行的作业并退出客户机。
 STOP_JOB=IMMEDIATE 将立即关闭
 ```
 
-### 5. 实战：实盘导入导出
+## 5. 实战：实盘导入导出
 
-#### 5.1 expdp导出和impdp导入
+### 5.1 expdp导出和impdp导入
 
 导出：
 
@@ -1260,7 +1260,7 @@ exit;
 impdp trade/HTCH2014htch@orcl DIRECTORY=DPDATA DUMPFILE=trade_2017-06-20.dmp remap_schema=trade:trade remap_tablespace=users:trade TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
 ```
 
-#### 5.2 exp导出
+### 5.2 exp导出
 
 ```shell
 [oracle@rdata02 oracle_backup]$ cat oracle_backup.sh 
@@ -1281,7 +1281,6 @@ day=`/bin/date +%F-%H`
 /bin/gzip ${BACKUP_DIR}/backup_full_real_$day.dmp 
 
 /bin/find $BACKUP_DIR -mtime +10 -delete
-
 ```
 
 
@@ -1335,9 +1334,7 @@ EOF
 done
 ```
 
-
-
-#### 5.3 导入报错
+#### ###5.3 导入报错
 
 impdp导入报错：
 
@@ -1361,7 +1358,92 @@ ORA-29283: invalid file operation
 [oracle@rac02 ~]$ ll /home/oracle/dmp/
 ```
 
-## 4. rman backup
+## 6. 实战：排除表 导入导出--范
+
+```sql
+Mdata01数据导到Sdata02
+
+1.导出
+1.给用户授予权限
+grant connect,resource,dba to trade;
+grant read,write on directory dpdata to trade;
+
+2.查看数据库dba_directories目录
+select * from dba_directories;
+```
+
+
+
+![](pic/QQ截图20170706091429.png)
+
+
+
+```shell
+3.若没有则新建
+create directory dpdata as '/data/dpdata'
+4.查看trade的默认表空间
+select username,default_tablespace from dba_users; 
+```
+
+
+
+![](pic/QQ截图20170706091537.png)
+
+```sql
+5.查询数据比较大的历史表
+Select Segment_Name,Sum(bytes)/1024/1024 as sizes from User_Extents Group By Segment_Name order by sizes desc
+
+6.筛选备份语句
+expdp trade/HTCH2014htch@orcl schemas=trade dumpfile=20170703.dmp exclude=TABLE:\" IN \(\'T_T_HOLD_H\'\,\' T_F_FUND_FLOW_H\'\,\'T_T_TRADE_H\'\,\'T_T_ORDER_H\'\)\"  DIRECTORY=dpdata;
+
+7.备份四张表空间
+expd ptrade/HTCH2014htch@orcl tables="('T_T_HOLD_H','T_F_FUND_FLOW_H','T_T_TRADE_H','T_T_ORDER_H')" CONTENT=METADATA_ONLY  directory=dpdata  dumpfile=zheng.dmp
+（先备份除四张历史表外的其他全部数据，在备份这四张历史表空间）
+
+scp -P 2200 zheng.dmp   trade@192.168.35.166:/tmp/
+2.导入
+1.查询数据库的用户，及对应的表空间
+select username,default_tablespace from dba_users; 
+2.选择要导入的用户，若没有则新建
+新建临时表空间
+CREATE TEMPORARY TABLESPACE trade05_temp 
+TEMPFILE '/data/oradata/orcl/trade05_tmp.dbf' 
+SIZE 10240M AUTOEXTEND ON NEXT 500M
+MAXSIZE unlimited 
+EXTENT MANAGEMENT LOCAL ;
+
+新建表空间
+create tablespace trade05
+logging 
+datafile '/data/oradata/orcl/ trade05.dbf' 
+size 2048m 
+autoextend on 
+next 500m
+maxsize unlimited extent management local segment space management auto;
+创建用户并指定表空间
+create user trade05 identified by trade05
+default tablespace trade05
+temporary tablespace trade05_temp; 
+给用户授予权限
+grant connect,resource,dba to trade05;
+grant read,write on directory dpdata to trade05;
+
+3.导入
+查看数据库dba_directories目录
+select * from dba_directories;
+
+导入四张表结构
+Impdp  trade05/trade05@orcl DIRECTORY=dpdata  DUMPFILE=zheng.dmp  remap_schema=trade:trade05  remap_tablespace=trade:trade05  TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
+ 
+导入数据
+impdp  trade05/trade05@orcl DIRECTORY=dpdata  DUMPFILE=20170704.dmp  remap_schema=trade:trade05  remap_tablespace=trade:trade05  TABLE_EXISTS_ACTION=REPLACE  transform=oid:n
+（先导入四张表结构在导入除四张外的数据）
+
+```
+
+
+
+## 7. rman backup
 
 ```sql
 RMAN开启归档以及备份
@@ -2321,6 +2403,20 @@ Database输入：192.168.x.x:1521/instance，其中192.168.x.x为数据库IP，1
 
 ![](pic/微信图片_20170622162634.jpg)
 
+## 2.3 连接异常之正在初始化
+
+问题描述：
+
+PL/SQL如果你连接好了，过十几分钟，或半个小时左右你没用它，连接可能接死掉了，显示“正在初始化”，然后就需要重新登录才行。
+
+![](pic/微信图片_20170705171303.png)
+
+解决方案：
+
+把那个check connection够上，这个会自动检查连接，设置之后，长时间不用也不会自动断开了，不会初始化啦。
+
+![](pic/微信图片_20170705171455.jpg)
+
 # 三、 Oracle的安装
 
 今天的学习内容是oracle产品的三种安装方式，还有使用dbca静默建库
@@ -3003,5 +3099,18 @@ end;
 
 查epayweb
 
+## 3. 常用日常SQL
 
+### 3.1 更改银行清算状态
+
+```sql
+select * from t_f_b_banks;
+update t_f_b_banks t set t.f_clear_status='1' where t.f_id='1';
+```
+
+## 3.2 查看清算和签到签退
+
+```jsp
+http://192.168.20.230:18001/test/bank.jsp
+```
 
